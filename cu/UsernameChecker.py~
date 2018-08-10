@@ -1,0 +1,96 @@
+from threading import Thread, RLock
+
+lock = RLock()
+
+
+class AsyncChecker(Thread):
+    def __init__(self, usernames, out, services, name=None):
+        Thread.__init__(self)
+        self.usernames = usernames
+        self.out = out
+        self.services = services
+        self.name = name
+
+    def runOneUsername(self, username):
+        for s in self.services:
+            result = self.services[s].run(username)
+            print(self.services[s] + ' ' + str(result))
+            if not result:
+                return False
+
+        return True
+
+    def run(self):
+        if self.name:
+            print('Thread ' + self.name + ' launched')
+        results = []
+        for u in self.usernames:
+            if self.runOneUsername(u):
+                results.append(u)
+
+        with lock:
+            self.out.extend(results)
+
+        if self.name:
+            print('Thread ' + self.name + ' done')
+
+
+def chunks(l, n):
+    k, m = divmod(len(l), n)
+    return (l[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(n))
+
+
+class UsernameChecker:
+    def __init__(self):
+        self.usernames = None
+        self.services = dict()
+
+    def feedUsernames(self, usernames):
+        self.usernames = usernames
+
+    def feedServices(self, services):
+        for s in services:
+            obj = s()
+            name = obj.getName()
+            # print('Adding service ' + name)
+            self.services[name] = obj
+
+    def runOneUsername(self, username):
+        for s in self.services:
+            result = self.services[s].run(username)
+            if not result:
+                return False
+
+        return True
+
+    def run(self):
+        results = []
+        for u in self.usernames:
+            if self.runOneUsername(u):
+                results.append(u)
+
+        return results
+
+    def runAsync(self, numThreads=50):
+        out = []
+        threads = []
+        i = 0
+        usernamesChunks = []
+        tmp = []
+        for c in chunks(self.usernames, numThreads):
+            tmp.append(c)
+
+        for t in tmp:
+            if len(t) > 0:
+                usernamesChunks.append(t)
+
+        for c in usernamesChunks:
+            t = AsyncChecker(c, out, self.services, str(i))
+            i += 1
+            t.start()
+            threads.append(t)
+
+        for t in threads:
+            t.join()
+
+        return out
