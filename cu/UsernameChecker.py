@@ -4,33 +4,54 @@ lock = RLock()
 
 
 class AsyncChecker(Thread):
-    def __init__(self, usernames, out, services, name=None):
+    def __init__(self, usernames, out, services, complete, debug, name=None):
         Thread.__init__(self)
         self.usernames = usernames
         self.out = out
         self.services = services
+        self.complete = complete
+        self.debug = debug
         self.name = name
 
     def runOneUsername(self, username):
+        results = dict()
         for s in self.services:
-            result = self.services[s].run(username)
-            if not result:
-                return False
+            tmp = self.services[s].run(username)
+            if self.complete:
+                results[s] = tmp
+            else:
+                if not tmp:
+                    return False
 
+        if self.complete:
+            return results
         return True
 
     def run(self):
-        if self.name:
+        if self.name and self.debug:
             print('Thread ' + self.name + ' launched')
-        results = []
+
+        if self.complete:
+            results = dict()
+        else:
+            results = []
+
         for u in self.usernames:
-            if self.runOneUsername(u):
-                results.append(u)
+            res = self.runOneUsername(u)
+            if self.complete:
+                results[u] = res
+            else:
+                if res:
+                    results.append(u)
 
         with lock:
-            self.out.extend(results)
+            if not self.complete:
+                self.out.extend(results)
+            else:
+                for r in results:
+                    self.out[r] = results[r]
 
-        if self.name:
+        if self.name and self.debug:
             print('Thread ' + self.name + ' done')
 
 
@@ -40,12 +61,14 @@ def chunks(l, n):
 
 
 class UsernameChecker:
-    def __init__(self, complete, debug, savedir):
+    def __init__(self, complete, debug, savedir, json, progress):
         self.usernames = None
         self.services = dict()
         self.complete = complete
         self.debug = debug
         self.savedir = savedir
+        self.json = json
+        self.progress = progress
 
     def feedUsernames(self, usernames):
         self.usernames = usernames
@@ -58,37 +81,53 @@ class UsernameChecker:
                 print('Adding service ' + name)
             self.services[name] = obj
 
-    def runOneUsername(self, username, all=False):
-        results = []
+    def runOneUsername(self, username):
+        results = dict()
         for s in self.services:
-            result = self.services[s].run(username)
-            print(s + ' ' + str(result))
-            if all:
-                results.append(result)
+            tmp = self.services[s].run(username)
+            if self.complete:
+                results[s] = tmp
             else:
-                if not result:
+                if not tmp:
                     return False
 
-        if all:
+        if self.complete:
             return results
         return True
 
     def run(self):
-        results = []
-        for u in self.usernames:
-            res = self.runOneUsername(u, self.complete)
-            if all:
-                out = [u]
-                out.extend(res)
-                results.append(out)
-            else:
-                if res:
-                    results.append(u)
+        if self.complete:
+            results = dict()
+        else:
+            results = []
+
+        if self.progress:
+            from tqdm import tqdm
+            for u in tqdm(self.usernames):
+                res = self.runOneUsername(u)
+                if self.complete:
+                    results[u] = res
+                else:
+                    if res:
+                        results.append(u)
+
+        else:
+            for u in self.usernames:
+                res = self.runOneUsername(u)
+                if self.complete:
+                    results[u] = res
+                else:
+                    if res:
+                        results.append(u)
 
         return results
 
     def runAsync(self, numThreads=50):
-        out = []
+        if self.complete:
+            out = dict()
+        else:
+            out = []
+
         threads = []
         i = 0
         usernamesChunks = []
@@ -101,12 +140,17 @@ class UsernameChecker:
                 usernamesChunks.append(t)
 
         for c in usernamesChunks:
-            t = AsyncChecker(c, out, self.services, str(i))
+            t = AsyncChecker(c, out, self.services, self.complete, self.debug, str(i))
             i += 1
             t.start()
             threads.append(t)
 
-        for t in threads:
-            t.join()
+        if self.progress:
+            from tqdm import tqdm
+            for t in tqdm(threads):
+                t.join()
+        else:
+            for t in threads:
+                t.join()
 
         return out
