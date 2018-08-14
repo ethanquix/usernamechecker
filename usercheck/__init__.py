@@ -1,14 +1,13 @@
-import sys
 import unicodedata
 import argparse
 
-from cu.UsernameChecker import UsernameChecker
+from usercheck.UsernameChecker import UsernameChecker
 
 # Services
-from cu.services.Twitter import Twitter
-from cu.services.Reddit import Reddit
-from cu.services.Github import Github
-from cu.services.Instagram import Instagram
+from usercheck.services.Twitter import Twitter
+from usercheck.services.Reddit import Reddit
+from usercheck.services.Github import Github
+from usercheck.services.Instagram import Instagram
 
 
 def remove_accents(input_str):
@@ -23,7 +22,7 @@ def isFullAvailable(src):
     return True
 
 
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("usernameOrFilename", help="Username or filename to check")
     parser.add_argument("-f", "--file", help="File mode", default=False, action='store_true')
@@ -84,6 +83,10 @@ if __name__ == '__main__':
                 for s in r[u]:
                     space = ' ' * (15 - len(s))
                     if r[u][s]:
-                        print('\033[92m' +'\t' + s + space + str(r[u][s]) + '\033[0m')
+                        print('\033[92m' + '\t' + s + space + str(r[u][s]) + '\033[0m')
                     else:
                         print('\033[91m' + '\t' + s + space + str(r[u][s]) + '\033[0m')
+
+
+if __name__ == '__main__':
+    main()

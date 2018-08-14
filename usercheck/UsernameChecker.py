@@ -129,7 +129,7 @@ class UsernameChecker:
             out = []
 
         threads = []
-        i = 0
+        i = 1
         usernamesChunks = []
         tmp = []
         for c in chunks(self.usernames, numThreads):
@@ -138,6 +138,10 @@ class UsernameChecker:
         for t in tmp:
             if len(t) > 0:
                 usernamesChunks.append(t)
+
+        if self.debug:
+            print('Creating ' + str(len(usernamesChunks)) + ' chunks of ' +
+                  str(len(self.usernames) / len(usernamesChunks)) + ' usernames')
 
         for c in usernamesChunks:
             t = AsyncChecker(c, out, self.services, self.complete, self.debug, str(i))
@@ -148,6 +152,8 @@ class UsernameChecker:
         if self.progress:
             from tqdm import tqdm
             for t in tqdm(threads):
+                print(' ')
+
                 t.join()
         else:
             for t in threads:

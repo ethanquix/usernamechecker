@@ -1,4 +1,4 @@
-from cu.AbstractService import AbstractService
+from usercheck.AbstractService import AbstractService
 import requests
 
 
